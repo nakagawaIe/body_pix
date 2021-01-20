@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BodyPix Sample</title>
+  <style>
+    #canvas {
+      width: 640px;
+      height: 480px;
+      background-image: url(images/img_03.jpg);
+      background-size: cover;
+      background-position: center;
+    }
+
+    #video {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas" width="640px" height="480px"></canvas>
+  <video id="video" autoplay playsinline muted width="640px" height="480px"></video>
+  <script src="dist/main.js"></script>
+</body>
+</html>
