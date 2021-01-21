@@ -28,5 +28,6 @@ module.exports = {
     'require-jsdoc': 'off',
     'object-curly-spacing': 'off',
     'arrow-parens': 'off',
+    'no-invalid-this': 'off',
   },
 };
