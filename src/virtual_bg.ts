@@ -1,5 +1,5 @@
 import * as bodyPix from '@tensorflow-models/body-pix';
-import * as tf from '@tensorflow/tfjs';
+import { getBackend } from '@tensorflow/tfjs';
 import { BodyPixInternalResolution } from '@tensorflow-models/body-pix/dist/types';
 import { PersonInferenceConfig } from '@tensorflow-models/body-pix/dist/body_pix_model';
 
@@ -7,7 +7,7 @@ const VIDEO_WIDTH = 1280;
 const VIDEO_HEIGHT = 720;
 
 /** 反転 */
-const flipHorizontal = true;
+const flipHorizontal = false;
 /** 大きいほど正確になるが、予測時間が遅くなる */
 const internalResolution: BodyPixInternalResolution = 'medium';
 /** (0 ~ 20) 人物と背景間のエッジをぼかすピクセル数 */
@@ -31,52 +31,51 @@ const SEGMENT_OPTION: PersonInferenceConfig = {
 };
 
 export class VirtualBgClass {
-  private net: bodyPix.BodyPix;
-  private animationId: number;
-  private isAnimate = false;
-  private mainCanvas: HTMLCanvasElement;
-  private mainCtx: CanvasRenderingContext2D;
-  private video = document.createElement('video');
-  private bgCanvas = document.createElement('canvas');
-  private bgCtx = this.bgCanvas.getContext('2d');
-  public effectType = 'bokeh';
-  public bgImage: HTMLImageElement;
+  private _net: bodyPix.BodyPix;
+  private _animationId: number;
+  private _isAnimate = false;
+  private _mainCanvas: HTMLCanvasElement;
+  private _mainCtx: CanvasRenderingContext2D;
+  private _video = document.createElement('video');
+  private _bgCanvas = document.createElement('canvas');
+  private _bgCtx = this._bgCanvas.getContext('2d');
+  public _effectType = 'image';
+  public _bgImage: HTMLImageElement;
 
   constructor(canvas: HTMLCanvasElement, bgImage: HTMLImageElement) {
-    tf.getBackend();
+    this._mainCanvas = canvas;
+    this._mainCtx = this._mainCanvas.getContext('2d');
+    this._mainCanvas.width = VIDEO_WIDTH;
+    this._mainCanvas.height = VIDEO_HEIGHT;
+    this._video.width = VIDEO_WIDTH;
+    this._video.height = VIDEO_HEIGHT;
+    this._bgCanvas.width = VIDEO_WIDTH;
+    this._bgCanvas.height = VIDEO_HEIGHT;
+    this._bgImage = bgImage;
+    getBackend();
     this.startVideo();
-
-    this.mainCanvas = canvas;
-    this.mainCtx = this.mainCanvas.getContext('2d');
-    this.mainCanvas.width = VIDEO_WIDTH;
-    this.mainCanvas.height = VIDEO_HEIGHT;
-    this.video.width = VIDEO_WIDTH;
-    this.video.height = VIDEO_HEIGHT;
-    this.bgCanvas.width = VIDEO_WIDTH;
-    this.bgCanvas.height = VIDEO_HEIGHT;
-    this.bgImage = bgImage;
   }
 
   private startVideo = async () => {
     const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
     const localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-    this.video.srcObject = localStream;
-    await this.video.play();
-    this.net = await bodyPix.load({
+    this._video.srcObject = localStream;
+    await this._video.play();
+    this._net = await bodyPix.load({
       architecture: 'MobileNetV1',
       outputStride: 16,
       multiplier: 0.5,
       quantBytes: 2,
     });
-    if (!this.net) {
+    if (!this._net) {
       console.warn('bodyPix net NOT READY');
       return;
     }
-    this.factoryEffect(this.effectType);
+    this.factoryEffect(this._effectType);
   }
 
   private factoryEffect = (type: string) => {
-    this.isAnimate = true;
+    this._isAnimate = true;
     if (type === 'off') {
       this.effectCallback(this.offEffect);
     } else if (type === 'color') {
@@ -89,32 +88,32 @@ export class VirtualBgClass {
   }
 
   private effectCallback = (callback: () => void) => {
-    this.animationId = window.requestAnimationFrame(callback);
+    this._animationId = window.requestAnimationFrame(callback);
     callback();
   }
 
   private offEffect = () => {
-    this.mainCtx.drawImage(this.video, 0, 0, this.mainCanvas.width, this.mainCanvas.height);
-    if (this.isAnimate) {
-      this.animationId = window.requestAnimationFrame(this.offEffect);
+    this._mainCtx.drawImage(this._video, 0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    if (this._isAnimate) {
+      this._animationId = window.requestAnimationFrame(this.offEffect);
     }
   }
 
   private bokehEffect = async () => {
     /** (1 ~ 20) ぼかし具合 */
     const backgroundBlurAmount = 15;
-    const segmentation = await this.net.segmentPerson(this.video, SEGMENT_OPTION);
-    bodyPix.drawBokehEffect(this.mainCanvas, this.video, segmentation, backgroundBlurAmount, edgeBlurAmount, flipHorizontal);
-    if (this.isAnimate) {
-      this.animationId = window.requestAnimationFrame(this.bokehEffect);
+    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
+    bodyPix.drawBokehEffect(this._mainCanvas, this._video, segmentation, backgroundBlurAmount, edgeBlurAmount, flipHorizontal);
+    if (this._isAnimate) {
+      this._animationId = window.requestAnimationFrame(this.bokehEffect);
     }
   }
 
   private colorEffect = async () => {
-    const segmentation = await this.net.segmentPerson(this.video, SEGMENT_OPTION);
+    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
     this.drawColorMask(segmentation);
-    if (this.isAnimate) {
-      this.animationId = window.requestAnimationFrame(this.colorEffect);
+    if (this._isAnimate) {
+      this._animationId = window.requestAnimationFrame(this.colorEffect);
     }
   }
 
@@ -123,41 +122,62 @@ export class VirtualBgClass {
     const fgColor = { r: 0, g: 0, b: 0, a: 0 };
     const bgColor = { r: 0, g: 0, b: 0, a: 220 };
     const maskImage = bodyPix.toMask(segmentation, fgColor, bgColor, true);
-    bodyPix.drawMask(this.mainCanvas, this.video, maskImage, opacity, edgeBlurAmount, flipHorizontal);
+    bodyPix.drawMask(this._mainCanvas, this._video, maskImage, opacity, edgeBlurAmount, flipHorizontal);
   }
 
   private bgImageEffect = async () => {
-    const segmentation = await this.net.segmentPerson(this.video, SEGMENT_OPTION);
+    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
     this.drawReplaceBgImage(segmentation);
-    if (this.isAnimate) {
-      this.animationId = window.requestAnimationFrame(this.bgImageEffect);
+    if (this._isAnimate) {
+      this._animationId = window.requestAnimationFrame(this.bgImageEffect);
     }
   }
 
   private drawReplaceBgImage = (segmentation: bodyPix.SemanticPersonSegmentation) => {
-    this.mainCtx.drawImage(this.video, 0, 0, this.video.width, this.video.height);
-    const mainImage = this.mainCtx.getImageData(0, 0, this.video.width, this.video.height);
-    this.bgCtx.drawImage(this.bgImage, 0, 0, this.mainCanvas.width, this.mainCanvas.height);
-    const bgCtxImage = this.bgCtx.getImageData(0, 0, this.mainCanvas.width, this.mainCanvas.height);
+    this._mainCtx.drawImage(this._video, 0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    const mainImage = this._mainCtx.getImageData(0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    const [x, y, w, h] = this.imageCoverSizeAndCenterPostion();
+    this._bgCtx.drawImage(this._bgImage, x, y, w, h);
+    const bgImage = this._bgCtx.getImageData(0, 0, this._bgCanvas.width, this._bgCanvas.height);
     for (let y = 0; y < VIDEO_HEIGHT; y++) {
       for (let x = 0; x < VIDEO_WIDTH; x++) {
         const base = (y * VIDEO_WIDTH + x) * 4;
         const segbase = y * VIDEO_WIDTH + x;
         if (segmentation.data[segbase] !== 1) {
-          mainImage.data[base + 0] = bgCtxImage.data[base + 0];
-          mainImage.data[base + 1] = bgCtxImage.data[base + 1];
-          mainImage.data[base + 2] = bgCtxImage.data[base + 2];
-          mainImage.data[base + 3] = bgCtxImage.data[base + 3];
+          mainImage.data[base + 0] = bgImage.data[base + 0];
+          mainImage.data[base + 1] = bgImage.data[base + 1];
+          mainImage.data[base + 2] = bgImage.data[base + 2];
+          mainImage.data[base + 3] = bgImage.data[base + 3];
         }
       }
     }
-    this.mainCtx.putImageData(mainImage, 0, 0);
+    this._mainCtx.putImageData(mainImage, 0, 0);
+  }
+
+  private imageCoverSizeAndCenterPostion = () => {
+    const canvasRate = VIDEO_WIDTH / VIDEO_HEIGHT;
+    const rate = this._bgImage.width / this._bgImage.height;
+    const width = this._bgCanvas.width;
+    const height = this._bgCanvas.height;
+    const iw = this._bgImage.width * (height / this._bgImage.height);
+    const ih = this._bgImage.height * (width / this._bgImage.width);
+    if (rate > canvasRate) {
+      return [(width - iw) / 2, 0, iw, height];
+    }
+    return [0, (height - ih) / 2, width, ih];
+  }
+
+  public changeBgImage = (image: HTMLImageElement) => {
+    this._bgImage = image;
+    this._bgCtx.clearRect(0, 0, this._bgCanvas.width, this._bgCanvas.height);
   }
 
   public restartEffect = () => {
-    this.isAnimate = false;
-    window.cancelAnimationFrame(this.animationId);
+    this._isAnimate = false;
+    window.cancelAnimationFrame(this._animationId);
     // AnimationFrameの停止をしっかり待つ
-    setTimeout(() => this.factoryEffect(this.effectType), 100);
+    setTimeout(() => this.factoryEffect(this._effectType), 120);
   }
+
+  public getStream = () => this._mainCanvas.captureStream();
 }

@@ -1,0 +1,56 @@
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+ul {
+  list-style-type: none;
+}
+
+$activeColor: rgb(98, 199, 152);
+
+.buttons {
+  display: flex;
+
+  li {
+    border: 1px solid #aaa;
+    border-radius: 5px;
+    cursor: pointer;
+    padding: 5px 10px;
+
+    &.is-active {
+      border: 3px solid $activeColor;
+      font-weight: bold;
+    }
+
+    & + li {
+      margin-left: 10px;
+    }
+  }
+}
+
+.images {
+  display: none;
+
+  li {
+    width: 100px;
+
+    & + li {
+      margin-left: 10px;
+    }
+  }
+
+  img {
+    border: 3px solid transparent;
+    border-radius: 5px;
+    cursor: pointer;
+
+    &.is-active {
+      border-color: $activeColor;
+    }
+  }
+}
+
+.canvas {
+  transform: scale(-1, 1);
+}

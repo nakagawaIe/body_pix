@@ -24,8 +24,6 @@ const webpack = require('webpack');
  *
  */
 
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-
 
 /*
  * We've enabled TerserPlugin for you! This minifies your app
@@ -48,36 +46,44 @@ module.exports = {
 
   plugins: [
     new webpack.ProgressPlugin(),
-    new MiniCssExtractPlugin({ filename: 'main.[contenthash].css' }),
   ],
 
   module: {
-    rules: [{
-      test: /\.(ts|tsx)$/,
-      loader: 'ts-loader',
-      include: [path.resolve(__dirname, 'src')],
-      exclude: [/node_modules/],
-    }, {
-      test: /.(scss|css)$/,
+    rules: [
+      {
+        test: /\.js$/,
+        enforce: 'pre',
+        use: ['source-map-loader'],
+      },
+      {
+        test: /\.(ts|tsx)$/,
+        loader: 'ts-loader',
+        include: [path.resolve(__dirname, 'src')],
+        exclude: [/node_modules/],
+      },
+      {
+        test: /.(scss|css)$/,
 
-      use: [{
-        loader: MiniCssExtractPlugin.loader,
-      }, {
-        loader: 'style-loader',
-      }, {
-        loader: 'css-loader',
+        use: [{
+          loader: 'style-loader',
+          options: {
+            injectType: 'singletonStyleTag',
+          },
+        }, {
+          loader: 'css-loader',
 
-        options: {
-          sourceMap: true,
-        },
-      }, {
-        loader: 'sass-loader',
+          options: {
+            sourceMap: true,
+          },
+        }, {
+          loader: 'sass-loader',
 
-        options: {
-          sourceMap: true,
-        },
-      }],
-    }],
+          options: {
+            sourceMap: true,
+          },
+        }],
+      },
+    ],
   },
 
   resolve: {

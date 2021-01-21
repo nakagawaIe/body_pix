@@ -4,50 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>BodyPix Sample</title>
-  <style>
-    img {
-      max-width: 100%;
-      height: auto;
-    }
-    ul {
-      list-style-type: none;
-    }
-    .buttons {
-      display: flex;
-    }
-    .buttons li {
-      border: 1px solid #aaa;
-      border-radius: 5px;
-      cursor: pointer;
-      padding: 5px 10px;
-    }
-    .buttons li.is-active {
-      border: 3px solid rgb(98, 199, 152);
-      font-weight: bold;
-    }
-
-    .images {
-      display: flex;
-    }
-    .images li {
-      width: 100px;
-    }
-    .images li + li,
-    .buttons li + li {
-      margin-left: 10px;
-    }
-    .images img {
-      border: 3px solid transparent;
-      border-radius: 5px;
-    }
-    .images img.is-active {
-      border-color: rgb(98, 199, 152);
-    }
-  </style>
 </head>
 <body>
   <div id="root">
-    <canvas id="canvas"></canvas>
+    <canvas class="canvas" id="canvas"></canvas>
     <ul class="buttons">
       <li data-type="off">OFF</li>
       <li data-type="bokeh">ぼかし</li>
@@ -58,6 +18,9 @@
       <li><img src="images/img_01.jpg" alt=""></li>
       <li><img src="images/img_02.jpg" alt=""></li>
       <li><img src="images/img_03.jpg" alt=""></li>
+      <li><img src="images/img_04.png" alt=""></li>
+      <li><img src="images/img_05.jpg" alt=""></li>
+      <li><img src="images/img_06.jpg" alt=""></li>
     </ul>
   </div>
   <script src="dist/main.js"></script>
