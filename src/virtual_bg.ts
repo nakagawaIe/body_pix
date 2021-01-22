@@ -1,37 +1,65 @@
 import * as bodyPix from '@tensorflow-models/body-pix';
 import { getBackend } from '@tensorflow/tfjs';
-import { BodyPixInternalResolution } from '@tensorflow-models/body-pix/dist/types';
-import { PersonInferenceConfig } from '@tensorflow-models/body-pix/dist/body_pix_model';
+import { Color } from '@tensorflow-models/body-pix/dist/types';
+import { PersonInferenceConfig, ModelConfig } from '@tensorflow-models/body-pix/dist/body_pix_model';
 
 const VIDEO_WIDTH = 1280;
 const VIDEO_HEIGHT = 720;
 
-/** 反転 */
-const flipHorizontal = false;
-/** 大きいほど正確になるが、予測時間が遅くなる */
-const internalResolution: BodyPixInternalResolution = 'medium';
-/** (0 ~ 20) 人物と背景間のエッジをぼかすピクセル数 */
-const edgeBlurAmount = 5;
-/** (0 ~ 1) 値が高いほど人の周りのトリミングがタイトになる */
-const segmentationThreshold = 0.7;
-/** 画像ごとに検出する人物ポーズの最大数 */
-const maxDetections = 4;
-/** ルートパーツスコアがこの値以上の個人検出のみを返します (?) */
-const scoreThreshold = 0.5;
-/** 非最大抑制部分の距離 (?) */
-const nmsRadius = 20;
-
-const SEGMENT_OPTION: PersonInferenceConfig = {
-  flipHorizontal,
-  internalResolution,
-  segmentationThreshold,
-  maxDetections,
-  scoreThreshold,
-  nmsRadius,
+const MODEL_OPTION: { [key: string]: ModelConfig; } = {
+  lowEnd: {
+    architecture: 'MobileNetV1',
+    outputStride: 8,
+    multiplier: 0.5,
+    quantBytes: 1,
+  },
+  low: {
+    architecture: 'MobileNetV1',
+    outputStride: 16,
+    multiplier: 0.75,
+    quantBytes: 2,
+  },
+  middle: {
+    architecture: 'MobileNetV1',
+    outputStride: 16,
+    multiplier: 1.0,
+    quantBytes: 2,
+  },
+  high: {
+    architecture: 'ResNet50',
+    outputStride: 16,
+    multiplier: 1.0,
+    quantBytes: 2,
+  },
+  highEnd: {
+    architecture: 'ResNet50',
+    outputStride: 32,
+    multiplier: 1.0,
+    quantBytes: 4,
+  },
 };
+
+export interface IModelOptions {
+  modelOption?: 'lowEnd' | 'low' | 'middle' | 'high' | 'highEnd';
+  segmentOption?: PersonInferenceConfig;
+  drawOption?: {
+    /** 単色マスクの不透明度 */
+    opacity?: number,
+    /** 単色マスクの色 */
+    bgColor?: Color,
+    /** (0 ~ 20) 人物と背景間のエッジをぼかすピクセル数 */
+    edgeBlurAmount?: number;
+    /** 反転 */
+    flipHorizontal?: boolean;
+    /** (1 ~ 20) ぼかし具合 */
+    backgroundBlurAmount?: number;
+  }
+}
 
 export class VirtualBgClass {
   private _net: bodyPix.BodyPix;
+  private _segmentOption: PersonInferenceConfig;
+  private _drawOption: IModelOptions['drawOption'];
   private _animationId: number;
   private _isAnimate = false;
   private _mainCanvas: HTMLCanvasElement;
@@ -42,7 +70,10 @@ export class VirtualBgClass {
   public _effectType = 'image';
   public _bgImage: HTMLImageElement;
 
-  constructor(canvas: HTMLCanvasElement, bgImage: HTMLImageElement) {
+  /** 描画するcanvas、背景画像、body-pixのオプションを渡してください */
+  constructor(canvas: HTMLCanvasElement, bgImage: HTMLImageElement, option: IModelOptions) {
+    this._segmentOption = option.segmentOption;
+    this._drawOption = option.drawOption;
     this._mainCanvas = canvas;
     this._mainCtx = this._mainCanvas.getContext('2d');
     this._mainCanvas.width = VIDEO_WIDTH;
@@ -53,20 +84,15 @@ export class VirtualBgClass {
     this._bgCanvas.height = VIDEO_HEIGHT;
     this._bgImage = bgImage;
     getBackend();
-    this.startVideo();
+    this.startVideo(option.modelOption);
   }
 
-  private startVideo = async () => {
+  private startVideo = async (modelOption: IModelOptions['modelOption']) => {
     const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
     const localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
     this._video.srcObject = localStream;
     await this._video.play();
-    this._net = await bodyPix.load({
-      architecture: 'MobileNetV1',
-      outputStride: 16,
-      multiplier: 0.5,
-      quantBytes: 2,
-    });
+    this._net = await bodyPix.load(MODEL_OPTION[modelOption]);
     if (!this._net) {
       console.warn('bodyPix net NOT READY');
       return;
@@ -100,9 +126,8 @@ export class VirtualBgClass {
   }
 
   private bokehEffect = async () => {
-    /** (1 ~ 20) ぼかし具合 */
-    const backgroundBlurAmount = 15;
-    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
+    const { backgroundBlurAmount, edgeBlurAmount, flipHorizontal } = this._drawOption;
+    const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     bodyPix.drawBokehEffect(this._mainCanvas, this._video, segmentation, backgroundBlurAmount, edgeBlurAmount, flipHorizontal);
     if (this._isAnimate) {
       this._animationId = window.requestAnimationFrame(this.bokehEffect);
@@ -110,7 +135,7 @@ export class VirtualBgClass {
   }
 
   private colorEffect = async () => {
-    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
+    const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     this.drawColorMask(segmentation);
     if (this._isAnimate) {
       this._animationId = window.requestAnimationFrame(this.colorEffect);
@@ -118,15 +143,14 @@ export class VirtualBgClass {
   }
 
   private drawColorMask = (segmentation: bodyPix.SemanticPersonSegmentation) => {
-    const opacity = 1;
+    const { opacity, bgColor, edgeBlurAmount, flipHorizontal } = this._drawOption;
     const fgColor = { r: 0, g: 0, b: 0, a: 0 };
-    const bgColor = { r: 0, g: 0, b: 0, a: 220 };
     const maskImage = bodyPix.toMask(segmentation, fgColor, bgColor, true);
     bodyPix.drawMask(this._mainCanvas, this._video, maskImage, opacity, edgeBlurAmount, flipHorizontal);
   }
 
   private bgImageEffect = async () => {
-    const segmentation = await this._net.segmentPerson(this._video, SEGMENT_OPTION);
+    const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     this.drawReplaceBgImage(segmentation);
     if (this._isAnimate) {
       this._animationId = window.requestAnimationFrame(this.bgImageEffect);
@@ -157,14 +181,14 @@ export class VirtualBgClass {
   private imageCoverSizeAndCenterPostion = () => {
     const canvasRate = VIDEO_WIDTH / VIDEO_HEIGHT;
     const rate = this._bgImage.width / this._bgImage.height;
-    const width = this._bgCanvas.width;
-    const height = this._bgCanvas.height;
-    const iw = this._bgImage.width * (height / this._bgImage.height);
-    const ih = this._bgImage.height * (width / this._bgImage.width);
+    const w = this._bgCanvas.width;
+    const h = this._bgCanvas.height;
+    const iw = this._bgImage.width * (h / this._bgImage.height);
+    const ih = this._bgImage.height * (w / this._bgImage.width);
     if (rate > canvasRate) {
-      return [(width - iw) / 2, 0, iw, height];
+      return [(w - iw) / 2, 0, iw, h];
     }
-    return [0, (height - ih) / 2, width, ih];
+    return [0, (h - ih) / 2, w, ih];
   }
 
   public changeBgImage = (image: HTMLImageElement) => {
@@ -176,7 +200,7 @@ export class VirtualBgClass {
     this._isAnimate = false;
     window.cancelAnimationFrame(this._animationId);
     // AnimationFrameの停止をしっかり待つ
-    setTimeout(() => this.factoryEffect(this._effectType), 120);
+    setTimeout(() => this.factoryEffect(this._effectType), 300);
   }
 
   public getStream = () => this._mainCanvas.captureStream();
