@@ -87,17 +87,25 @@ export class VirtualBgClass {
     this.startVideo(option.modelOption);
   }
 
-  private startVideo = async (modelOption: IModelOptions['modelOption']) => {
-    const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
-    const localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
-    this._video.srcObject = localStream;
-    await this._video.play();
-    this._net = await bodyPix.load(MODEL_OPTION[modelOption]);
-    if (!this._net) {
-      console.warn('bodyPix net NOT READY');
+  private startVideo = (modelOption: IModelOptions['modelOption']) => {
+    if (!navigator.mediaDevices) {
+      alert('お使いのブラウザは対応しておりません。');
       return;
     }
-    this.factoryEffect(this._effectType);
+    const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
+    navigator.getUserMedia(mediaConstraints, async s => {
+      this._video.srcObject = s;
+      await this._video.play();
+      this._net = await bodyPix.load(MODEL_OPTION[modelOption]);
+      if (!this._net) {
+        alert('bodyPixの読み込みに失敗しました。');
+        return;
+      }
+      this.factoryEffect(this._effectType);
+    }, e => {
+      alert(e.message);
+      return;
+    });
   }
 
   private factoryEffect = (type: string) => {
