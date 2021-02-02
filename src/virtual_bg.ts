@@ -93,7 +93,7 @@ export class VirtualBgClass {
       return;
     }
     const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
-    navigator.getUserMedia(mediaConstraints, async s => {
+    navigator.mediaDevices.getUserMedia(mediaConstraints).then(async s => {
       this._video.srcObject = s;
       await this._video.play();
       this._net = await bodyPix.load(MODEL_OPTION[modelOption]);
