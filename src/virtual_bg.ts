@@ -111,42 +111,36 @@ export class VirtualBgClass {
   private factoryEffect = (type: string) => {
     this._isAnimate = true;
     if (type === 'off') {
-      this.effectCallback(this.offEffect);
+      this.effectRepetition(this.offEffect);
     } else if (type === 'color') {
-      this.effectCallback(this.colorEffect);
+      this.effectRepetition(this.colorEffect);
     } else if (type === 'image') {
-      this.effectCallback(this.bgImageEffect);
+      this.effectRepetition(this.bgImageEffect);
     } else if (type === 'bokeh') {
-      this.effectCallback(this.bokehEffect);
+      this.effectRepetition(this.bokehEffect);
     }
   }
 
-  private effectCallback = (callback: () => void) => {
+  private effectRepetition = (callback: () => void) => {
     this._animationId = window.requestAnimationFrame(callback);
   }
 
   private offEffect = () => {
     this._mainCtx.drawImage(this._video, 0, 0, this._mainCanvas.width, this._mainCanvas.height);
-    if (this._isAnimate) {
-      this._animationId = window.requestAnimationFrame(this.offEffect);
-    }
+    if (this._isAnimate) this.effectRepetition(this.offEffect);
   }
 
   private bokehEffect = async () => {
     const { backgroundBlurAmount, edgeBlurAmount, flipHorizontal } = this._drawOption;
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     bodyPix.drawBokehEffect(this._mainCanvas, this._video, segmentation, backgroundBlurAmount, edgeBlurAmount, flipHorizontal);
-    if (this._isAnimate) {
-      this._animationId = window.requestAnimationFrame(this.bokehEffect);
-    }
+    if (this._isAnimate) this.effectRepetition(this.bokehEffect);
   }
 
   private colorEffect = async () => {
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     this.drawColorMask(segmentation);
-    if (this._isAnimate) {
-      this._animationId = window.requestAnimationFrame(this.colorEffect);
-    }
+    if (this._isAnimate) this.effectRepetition(this.colorEffect);
   }
 
   private drawColorMask = (segmentation: bodyPix.SemanticPersonSegmentation) => {
@@ -159,9 +153,7 @@ export class VirtualBgClass {
   private bgImageEffect = async () => {
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     this.drawReplaceBgImage(segmentation);
-    if (this._isAnimate) {
-      this._animationId = window.requestAnimationFrame(this.bgImageEffect);
-    }
+    if (this._isAnimate) this.effectRepetition(this.bgImageEffect);
   }
 
   private drawReplaceBgImage = (segmentation: bodyPix.SemanticPersonSegmentation) => {
