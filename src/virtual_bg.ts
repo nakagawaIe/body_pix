@@ -96,8 +96,8 @@ export class VirtualBgClass {
     }
     const mediaConstraints = {
       video: {
-        width: { min: 640, ideal: VIDEO_WIDTH, max: 1920 },
-        height: { min: 640, ideal: VIDEO_WIDTH, max: 1920 },
+        width: { ideal: VIDEO_WIDTH, max: 1920 },
+        height: { ideal: VIDEO_WIDTH, max: 1920 },
         aspectRatio: { ideal: 1.7777777778 },
       },
       audio: false,
@@ -111,8 +111,8 @@ export class VirtualBgClass {
         return;
       }
       this.factoryEffect(this._effectType);
-    }, e => {
-      alert(e.message);
+    }).catch(e => {
+      alert(`${e.name}\n${e.message}`);
       return;
     });
   }
