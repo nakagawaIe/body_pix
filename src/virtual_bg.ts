@@ -123,7 +123,6 @@ export class VirtualBgClass {
 
   private effectCallback = (callback: () => void) => {
     this._animationId = window.requestAnimationFrame(callback);
-    callback();
   }
 
   private offEffect = () => {
