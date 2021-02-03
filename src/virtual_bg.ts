@@ -80,6 +80,8 @@ export class VirtualBgClass {
     this._mainCanvas.height = VIDEO_HEIGHT;
     this._video.width = VIDEO_WIDTH;
     this._video.height = VIDEO_HEIGHT;
+    this._video.playsInline = true;
+    this._video.muted = true;
     this._bgCanvas.width = VIDEO_WIDTH;
     this._bgCanvas.height = VIDEO_HEIGHT;
     this._bgImage = bgImage;
@@ -92,7 +94,14 @@ export class VirtualBgClass {
       alert('お使いのブラウザは対応しておりません。');
       return;
     }
-    const mediaConstraints = { video: { width: VIDEO_WIDTH, height: VIDEO_HEIGHT }, audio: false };
+    const mediaConstraints = {
+      video: {
+        width: { min: 640, ideal: VIDEO_WIDTH, max: 1920 },
+        height: { min: 640, ideal: VIDEO_WIDTH, max: 1920 },
+        aspectRatio: { ideal: 1.7777777778 },
+      },
+      audio: false,
+    };
     navigator.mediaDevices.getUserMedia(mediaConstraints).then(async s => {
       this._video.srcObject = s;
       await this._video.play();
@@ -126,7 +135,8 @@ export class VirtualBgClass {
   }
 
   private offEffect = () => {
-    this._mainCtx.drawImage(this._video, 0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    const [sx, sy, sw, sh, dx, dy, dw, dh] = this.mainCanvasCenterPostion();
+    this._mainCtx.drawImage(this._video, sx, sy, sw, sh, dx, dy, dw, dh);
     if (this._isAnimate) this.effectRepetition(this.offEffect);
   }
 
@@ -157,7 +167,8 @@ export class VirtualBgClass {
   }
 
   private drawReplaceBgImage = (segmentation: bodyPix.SemanticPersonSegmentation) => {
-    this._mainCtx.drawImage(this._video, 0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    const [sx, sy, sw, sh, dx, dy, dw, dh] = this.mainCanvasCenterPostion();
+    this._mainCtx.drawImage(this._video, sx, sy, sw, sh, dx, dy, dw, dh);
     const mainImage = this._mainCtx.getImageData(0, 0, this._mainCanvas.width, this._mainCanvas.height);
     const [x, y, w, h] = this.imageCoverSizeAndCenterPostion();
     this._bgCtx.drawImage(this._bgImage, x, y, w, h);
@@ -190,6 +201,20 @@ export class VirtualBgClass {
     return [0, (h - ih) / 2, w, ih];
   }
 
+  private mainCanvasCenterPostion = () => {
+    const { width, height } = this._mainCanvas;
+    const { videoWidth, videoHeight } = this._video;
+    return [
+      0, 0,
+      videoWidth,
+      videoHeight,
+      (width - videoWidth) / 2,
+      (height - videoHeight) / 2,
+      videoWidth,
+      videoHeight,
+    ];
+  }
+
   public changeBgImage = (image: HTMLImageElement) => {
     this._bgImage = image;
     this._bgCtx.clearRect(0, 0, this._bgCanvas.width, this._bgCanvas.height);
@@ -198,6 +223,7 @@ export class VirtualBgClass {
   public restartEffect = () => {
     this._isAnimate = false;
     window.cancelAnimationFrame(this._animationId);
+    this._mainCtx.clearRect(0, 0, this._mainCanvas.width, this._mainCanvas.height);
     // AnimationFrameの停止をしっかり待つ
     setTimeout(() => this.factoryEffect(this._effectType), 300);
   }
