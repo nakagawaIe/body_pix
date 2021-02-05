@@ -1,12 +1,16 @@
 import './style.scss';
-import { VirtualBgClass, IModelOptions } from './virtual_bg';
+import { VirtualBgClass } from './virtual_bg';
+import { IOptions } from './option';
+
+export const VIDEO_WIDTH = 320; // 320, 640, 960
+export const VIDEO_HEIGHT = 240; // 240, 480, 720
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('canvas') as HTMLCanvasElement;
   const imagesWrap = document.querySelector('.images') as HTMLUListElement;
   const bgImage = document.querySelector('.images img') as HTMLImageElement;
-  const option: IModelOptions = {
-    // modelOption: 'middle',
+  const option: IOptions = {
+    modelOption: 'low',
     // segmentOption: {
     //   internalResolution: 'medium', // 大きいほど正確になるが、予測時間が遅くなる
     //   segmentationThreshold: 0.7, // (0 ~ 1) 値が高いほど人の周りのトリミングがタイトになる
@@ -17,6 +21,10 @@ window.addEventListener('DOMContentLoaded', () => {
       flipHorizontal: false,
       edgeBlurAmount: 5,
       backgroundBlurAmount: 15,
+    },
+    videoConstraints: {
+      width: VIDEO_WIDTH,
+      height: VIDEO_HEIGHT,
     },
   };
   const bgEffect = new VirtualBgClass(canvas, bgImage, option);

@@ -7,7 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "run-p dev:*",
     "dev:server": "npx webpack-cli serve",
-    "dev:watch": "npx webpack --mode development --watch"
+    "dev:watch": "npx webpack --mode development --watch",
+    "build": "npx webpack --mode production"
   },
   "repository": {
     "type": "git",

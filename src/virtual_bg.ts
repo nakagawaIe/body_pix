@@ -1,65 +1,13 @@
 import * as bodyPix from '@tensorflow-models/body-pix';
 import { getBackend } from '@tensorflow/tfjs';
-import { Color } from '@tensorflow-models/body-pix/dist/types';
-import { PersonInferenceConfig, ModelConfig } from '@tensorflow-models/body-pix/dist/body_pix_model';
-
-const VIDEO_WIDTH = 1280;
-const VIDEO_HEIGHT = 720;
-
-const MODEL_OPTION: { [key: string]: ModelConfig; } = {
-  lowEnd: {
-    architecture: 'MobileNetV1',
-    outputStride: 8,
-    multiplier: 0.5,
-    quantBytes: 1,
-  },
-  low: {
-    architecture: 'MobileNetV1',
-    outputStride: 16,
-    multiplier: 0.75,
-    quantBytes: 2,
-  },
-  middle: {
-    architecture: 'MobileNetV1',
-    outputStride: 16,
-    multiplier: 1.0,
-    quantBytes: 2,
-  },
-  high: {
-    architecture: 'ResNet50',
-    outputStride: 16,
-    multiplier: 1.0,
-    quantBytes: 2,
-  },
-  highEnd: {
-    architecture: 'ResNet50',
-    outputStride: 32,
-    multiplier: 1.0,
-    quantBytes: 4,
-  },
-};
-
-export interface IModelOptions {
-  modelOption?: 'lowEnd' | 'low' | 'middle' | 'high' | 'highEnd';
-  segmentOption?: PersonInferenceConfig;
-  drawOption?: {
-    /** 単色マスクの不透明度 */
-    opacity?: number,
-    /** 単色マスクの色 */
-    bgColor?: Color,
-    /** (0 ~ 20) 人物と背景間のエッジをぼかすピクセル数 */
-    edgeBlurAmount?: number;
-    /** 反転 */
-    flipHorizontal?: boolean;
-    /** (1 ~ 20) ぼかし具合 */
-    backgroundBlurAmount?: number;
-  }
-}
+import { PersonInferenceConfig } from '@tensorflow-models/body-pix/dist/body_pix_model';
+import { MODEL_OPTION, IOptions } from './option';
 
 export class VirtualBgClass {
   private _net: bodyPix.BodyPix;
   private _segmentOption: PersonInferenceConfig;
-  private _drawOption: IModelOptions['drawOption'];
+  private _drawOption: IOptions['drawOption'];
+  private _mediaConstraints: MediaStreamConstraints;
   private _animationId: number;
   private _isAnimate = false;
   private _mainCanvas: HTMLCanvasElement;
@@ -70,39 +18,40 @@ export class VirtualBgClass {
   public _effectType = 'image';
   public _bgImage: HTMLImageElement;
 
-  /** 描画するcanvas、背景画像、body-pixのオプションを渡してください */
-  constructor(canvas: HTMLCanvasElement, bgImage: HTMLImageElement, option: IModelOptions) {
+  /** 描画するcanvas、背景画像、body-pixのオプション類を渡してください */
+  constructor(canvas: HTMLCanvasElement, bgImage: HTMLImageElement, option: IOptions) {
     this._segmentOption = option.segmentOption;
     this._drawOption = option.drawOption;
+    const { width, height } = option.videoConstraints;
+    this._mediaConstraints = {
+      video: {
+        width: { ideal: width },
+        height: { ideal: height },
+        aspectRatio: { ideal: width / height },
+      },
+      audio: false,
+    };
     this._mainCanvas = canvas;
     this._mainCtx = this._mainCanvas.getContext('2d');
-    this._mainCanvas.width = VIDEO_WIDTH;
-    this._mainCanvas.height = VIDEO_HEIGHT;
-    this._video.width = VIDEO_WIDTH;
-    this._video.height = VIDEO_HEIGHT;
+    this._mainCanvas.width = width;
+    this._mainCanvas.height = height;
+    this._video.width = width;
+    this._video.height = height;
     this._video.playsInline = true;
     this._video.muted = true;
-    this._bgCanvas.width = VIDEO_WIDTH;
-    this._bgCanvas.height = VIDEO_HEIGHT;
+    this._bgCanvas.width = width;
+    this._bgCanvas.height = height;
     this._bgImage = bgImage;
     getBackend();
     this.startVideo(option.modelOption);
   }
 
-  private startVideo = (modelOption: IModelOptions['modelOption']) => {
+  private startVideo = (modelOption: IOptions['modelOption']) => {
     if (!navigator.mediaDevices) {
       alert('お使いのブラウザは対応しておりません。');
       return;
     }
-    const mediaConstraints = {
-      video: {
-        width: { ideal: VIDEO_WIDTH, max: 1920 },
-        height: { ideal: VIDEO_WIDTH, max: 1920 },
-        aspectRatio: { ideal: 1.7777777778 },
-      },
-      audio: false,
-    };
-    navigator.mediaDevices.getUserMedia(mediaConstraints).then(async s => {
+    navigator.mediaDevices.getUserMedia(this._mediaConstraints).then(async s => {
       this._video.srcObject = s;
       await this._video.play();
       this._net = await bodyPix.load(MODEL_OPTION[modelOption]);
@@ -143,13 +92,17 @@ export class VirtualBgClass {
   private bokehEffect = async () => {
     const { backgroundBlurAmount, edgeBlurAmount, flipHorizontal } = this._drawOption;
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
+    console.time('bokeh');
     bodyPix.drawBokehEffect(this._mainCanvas, this._video, segmentation, backgroundBlurAmount, edgeBlurAmount, flipHorizontal);
+    console.timeEnd('bokeh');
     if (this._isAnimate) this.effectRepetition(this.bokehEffect);
   }
 
   private colorEffect = async () => {
+    console.time('color');
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     this.drawColorMask(segmentation);
+    console.timeEnd('color');
     if (this._isAnimate) this.effectRepetition(this.colorEffect);
   }
 
@@ -161,22 +114,29 @@ export class VirtualBgClass {
   }
 
   private bgImageEffect = async () => {
+    console.time('both');
+    console.time('segment');
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
+    console.timeEnd('segment');
+    console.time('draw');
     this.drawReplaceBgImage(segmentation);
+    console.timeEnd('draw');
+    console.timeEnd('both');
     if (this._isAnimate) this.effectRepetition(this.bgImageEffect);
   }
 
   private drawReplaceBgImage = (segmentation: bodyPix.SemanticPersonSegmentation) => {
     const [sx, sy, sw, sh, dx, dy, dw, dh] = this.mainCanvasCenterPostion();
     this._mainCtx.drawImage(this._video, sx, sy, sw, sh, dx, dy, dw, dh);
-    const mainImage = this._mainCtx.getImageData(0, 0, this._mainCanvas.width, this._mainCanvas.height);
+    const { width, height } = this._mainCanvas;
+    const mainImage = this._mainCtx.getImageData(0, 0, width, height);
     const [x, y, w, h] = this.imageCoverSizeAndCenterPostion();
     this._bgCtx.drawImage(this._bgImage, x, y, w, h);
     const bgImage = this._bgCtx.getImageData(0, 0, this._bgCanvas.width, this._bgCanvas.height);
-    for (let y = 0; y < VIDEO_HEIGHT; y++) {
-      for (let x = 0; x < VIDEO_WIDTH; x++) {
-        const base = (y * VIDEO_WIDTH + x) * 4;
-        const segbase = y * VIDEO_WIDTH + x;
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const base = (y * width + x) * 4;
+        const segbase = y * width + x;
         if (segmentation.data[segbase] !== 1) {
           mainImage.data[base + 0] = bgImage.data[base + 0];
           mainImage.data[base + 1] = bgImage.data[base + 1];
@@ -189,12 +149,13 @@ export class VirtualBgClass {
   }
 
   private imageCoverSizeAndCenterPostion = () => {
-    const canvasRate = VIDEO_WIDTH / VIDEO_HEIGHT;
-    const rate = this._bgImage.width / this._bgImage.height;
-    const w = this._bgCanvas.width;
-    const h = this._bgCanvas.height;
-    const iw = this._bgImage.width * (h / this._bgImage.height);
-    const ih = this._bgImage.height * (w / this._bgImage.width);
+    const { width, height } = this._mainCanvas;
+    const { width: bgWidth, height: bgHeight } = this._bgImage;
+    const { width: w, height: h } = this._bgCanvas;
+    const canvasRate = width / height;
+    const rate = bgWidth / bgHeight;
+    const iw = bgWidth * (h / bgHeight);
+    const ih = bgHeight * (w / bgWidth);
     if (rate > canvasRate) {
       return [(w - iw) / 2, 0, iw, h];
     }
