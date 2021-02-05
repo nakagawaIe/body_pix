@@ -114,14 +114,14 @@ export class VirtualBgClass {
   }
 
   private bgImageEffect = async () => {
-    console.time('both');
+    console.time('all');
     console.time('segment');
     const segmentation = await this._net.segmentPerson(this._video, this._segmentOption);
     console.timeEnd('segment');
     console.time('draw');
     this.drawReplaceBgImage(segmentation);
     console.timeEnd('draw');
-    console.timeEnd('both');
+    console.timeEnd('all');
     if (this._isAnimate) this.effectRepetition(this.bgImageEffect);
   }
 

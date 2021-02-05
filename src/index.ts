@@ -10,7 +10,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const imagesWrap = document.querySelector('.images') as HTMLUListElement;
   const bgImage = document.querySelector('.images img') as HTMLImageElement;
   const option: IOptions = {
-    modelOption: 'low',
+    // modelOption: 'low',
     // segmentOption: {
     //   internalResolution: 'medium', // 大きいほど正確になるが、予測時間が遅くなる
     //   segmentationThreshold: 0.7, // (0 ~ 1) 値が高いほど人の周りのトリミングがタイトになる
